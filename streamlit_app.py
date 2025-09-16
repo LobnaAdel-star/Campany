@@ -153,3 +153,32 @@ if uploaded_file is not None:
     st.write("F1:", f1_score(y_test, y_pred_best))
 else:
     st.info("👆 Please upload your `bank.csv` file to start.")
+    # =============================
+# 7. Prediction Form
+# =============================
+st.header("🔮 Make a Prediction")
+
+# نجهز الأعمدة
+input_data = {}
+for col in categorical_features:
+    options = data[col].unique().tolist()
+    input_data[col] = st.selectbox(f"{col}", options)
+
+for col in numeric_features:
+    val = st.number_input(f"{col}", value=float(data[col].mean()))
+    input_data[col] = val
+
+# زرار التنبؤ
+if st.button("Predict"):
+    # نحول input dict ل DataFrame
+    input_df = pd.DataFrame([input_data])
+    
+    # نعمل التنبؤ
+    prediction = best_pipe.predict(input_df)[0]
+    proba = best_pipe.predict_proba(input_df)[0][1]
+    
+    if prediction == 1:
+        st.success(f"✅ العميل **هيوافق** على الإيداع (Probability: {proba:.2f})")
+    else:
+        st.error(f"❌ العميل **مش هيوافق** على الإيداع (Probability: {proba:.2f})")
+
