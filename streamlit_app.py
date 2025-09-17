@@ -26,18 +26,22 @@ st.title("Bank Marketing Prediction App")
 st.subheader("Dataset Preview")
 st.write(data.head())
 
-# Encode categorical variables
+# ✅ Encode categorical variables with stored encoders
 data_encoded = data.copy()
+encoders = {}
 for col in data_encoded.select_dtypes(include='object').columns:
     if col != 'deposit':
         le = LabelEncoder()
         data_encoded[col] = le.fit_transform(data_encoded[col])
+        encoders[col] = le   # store encoder for later use
 
 X = data_encoded.drop("deposit", axis=1)
 y = data_encoded["deposit"].apply(lambda v: 1 if str(v).lower() == "yes" else 0)
 
 # Train/test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
 
 # Model selection
 st.sidebar.subheader("Choose Model")
@@ -83,8 +87,7 @@ st.write(f"F1 Score: {f1_score(y_test, y_pred):.2f}")
 st.write(f"Precision: {precision_score(y_test, y_pred):.2f}")
 st.write(f"Recall: {recall_score(y_test, y_pred):.2f}")
 
-# Prediction form
-# Prediction form
+# ✅ Prediction form
 st.subheader("Try Prediction")
 with st.form("prediction_form"):
     inputs = {}
@@ -103,10 +106,15 @@ with st.form("prediction_form"):
 
     if submitted:
         input_df = pd.DataFrame([inputs])
-        # Encode categorical inputs
-        for col in input_df.select_dtypes(include="object").columns:
-            le = LabelEncoder()
-            input_df[col] = le.fit_transform(input_df[col])
+
+        # ✅ Apply stored encoders instead of refitting
+        for col, le in encoders.items():
+            if col in input_df.columns:
+                input_df[col] = le.transform([input_df[col].iloc[0]])
+
+        # ✅ Align columns with training data
+        input_df = input_df.reindex(columns=X.columns, fill_value=0)
+
         y_new_pred = model.predict(input_df)
         result = "Yes" if y_new_pred[0] == 1 else "No"
         st.success(f"Prediction: {result}")
