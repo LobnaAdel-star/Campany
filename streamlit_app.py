@@ -1,181 +1,105 @@
-# streamlit_app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-
+import plotly.express as px
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
 from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
-from catboost import CatBoostClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+# Load dataset
+@st.cache_data
+def load_data():
+    data = pd.read_csv('bank.csv')
+    return data
 
-import warnings
-warnings.filterwarnings("ignore")
+data = load_data()
 
-# ================================
-# Streamlit UI
-# ================================
-st.title("📊 Bank Marketing ML Dashboard")
-st.markdown("### Compare Machine Learning Models on Bank Marketing Dataset")
+st.title("Bank Marketing Prediction App")
 
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-if uploaded_file is not None:
-    data = pd.read_csv(uploaded_file)
+st.subheader("Dataset Preview")
+st.write(data.head())
 
-    st.write("✅ Data Shape:", data.shape)
-    st.dataframe(data.head())
+# Encode categorical variables
+data_encoded = data.copy()
+for col in data_encoded.select_dtypes(include='object').columns:
+    if col != 'deposit':
+        le = LabelEncoder()
+        data_encoded[col] = le.fit_transform(data_encoded[col])
 
-    # Missing values
-    st.subheader("🔍 Missing Values")
-    st.write(data.isnull().sum())
+X = data_encoded.drop("deposit", axis=1)
+y = data_encoded["deposit"].apply(lambda v: 1 if v == "yes" or v == "Yes" else 0)
 
-    # Target distribution
-    st.subheader("📈 Target Distribution")
-    fig, ax = plt.subplots()
-    sns.countplot(x="deposit", data=data, ax=ax)
-    st.pyplot(fig)
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-    # Correlation heatmap
-    st.subheader("📊 Correlation Heatmap")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.heatmap(data.corr(numeric_only=True), annot=True, cmap="coolwarm", ax=ax)
-    st.pyplot(fig)
+# Model selection
+st.sidebar.subheader("Choose Model")
+model_choice = st.sidebar.selectbox("Select Model", [
+    "Logistic Regression",
+    "KNN",
+    "SVM",
+    "Decision Tree",
+    "Random Forest",
+    "AdaBoost",
+    "Gradient Boosting",
+    "XGBoost"
+])
 
-    # ================================
-    # Preprocessing
-    # ================================
-    X = data.drop("deposit", axis=1)
-    y = data["deposit"]
+def get_model(name):
+    if name == "Logistic Regression":
+        return LogisticRegression(max_iter=1000)
+    elif name == "KNN":
+        return KNeighborsClassifier()
+    elif name == "SVM":
+        return SVC(probability=True)
+    elif name == "Decision Tree":
+        return DecisionTreeClassifier()
+    elif name == "Random Forest":
+        return RandomForestClassifier()
+    elif name == "AdaBoost":
+        return AdaBoostClassifier()
+    elif name == "Gradient Boosting":
+        return GradientBoostingClassifier()
+    elif name == "XGBoost":
+        return XGBClassifier(use_label_encoder=False, eval_metric='logloss')
 
-    # Encode target
-    y = LabelEncoder().fit_transform(y)
+model = get_model(model_choice)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
 
-    categorical_features = X.select_dtypes(include=["object", "category"]).columns.tolist()
-    numeric_features = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+st.subheader("Model Performance")
+st.write(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+st.write(f"F1 Score: {f1_score(y_test, y_pred):.2f}")
+st.write(f"Precision: {precision_score(y_test, y_pred):.2f}")
+st.write(f"Recall: {recall_score(y_test, y_pred):.2f}")
 
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", StandardScaler(), numeric_features),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
-        ]
-    )
-
-    # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    # Models
-    models = [
-        (LogisticRegression(max_iter=1000), "Logistic Regression"),
-        (KNeighborsClassifier(), "KNN"),
-        (SVC(), "SVM"),
-        (DecisionTreeClassifier(), "Decision Tree"),
-        (RandomForestClassifier(), "Random Forest"),
-        (AdaBoostClassifier(), "AdaBoost"),
-        (GradientBoostingClassifier(), "GradientBoosting"),
-        (XGBClassifier(use_label_encoder=False, eval_metric="logloss"), "XGBoost"),
-        (LGBMClassifier(), "LightGBM"),
-        (CatBoostClassifier(verbose=0), "CatBoost"),
-        (GaussianNB(), "Naive Bayes"),
-        (MLPClassifier(max_iter=500), "Neural Network")
-    ]
-
-    def train_and_evaluate(model, name):
-        pipe = Pipeline(steps=[("preprocess", preprocessor), ("model", model)])
-        pipe.fit(X_train, y_train)
-        y_pred = pipe.predict(X_test)
-        return {
-            "Model": name,
-            "Accuracy": accuracy_score(y_test, y_pred),
-            "Precision": precision_score(y_test, y_pred),
-            "Recall": recall_score(y_test, y_pred),
-            "F1": f1_score(y_test, y_pred)
-        }
-
-    # Run models
-    st.subheader("🏆 Models Comparison")
-    results = []
-    for model, name in models:
-        results.append(train_and_evaluate(model, name))
-
-    results_df = pd.DataFrame(results)
-    st.dataframe(results_df.sort_values(by="F1", ascending=False))
-
-    # Plot results
-    fig, ax = plt.subplots(figsize=(10, 5))
-    results_df.set_index("Model")["F1"].plot(kind="bar", ax=ax, title="Model F1-Score Comparison")
-    st.pyplot(fig)
-
-    # ================================
-    # Hyperparameter Tuning
-    # ================================
-    st.subheader("🔧 Hyperparameter Tuning (Random Forest)")
-
-    best_model = RandomForestClassifier()
-    param_grid = {
-        "n_estimators": [100, 200],
-        "max_depth": [None, 10],
-        "min_samples_split": [2, 5]
-    }
-
-    grid_search = GridSearchCV(
-        estimator=Pipeline(steps=[("preprocess", preprocessor), ("model", best_model)]),
-        param_grid={"model__" + k: v for k, v in param_grid.items()},
-        cv=3,
-        scoring="f1",
-        n_jobs=-1
-    )
-    grid_search.fit(X_train, y_train)
-
-    st.write("Best Parameters:", grid_search.best_params_)
-
-    best_pipe = grid_search.best_estimator_
-    y_pred_best = best_pipe.predict(X_test)
-
-    st.write("Accuracy:", accuracy_score(y_test, y_pred_best))
-    st.write("Precision:", precision_score(y_test, y_pred_best))
-    st.write("Recall:", recall_score(y_test, y_pred_best))
-    st.write("F1:", f1_score(y_test, y_pred_best))
-
-    # ==============================
-    # 7. Prediction Form
-    # ==============================
-    st.header("🔮 Make a Prediction")
-
-    # نجهز الأعمدة
-    input_data = {}
-    for col in categorical_features:
-        options = data[col].unique().tolist()
-        input_data[col] = st.selectbox(f"{col}", options)
-
-    for col in numeric_features:
-        val = st.number_input(f"{col}", value=float(data[col].mean()))
-        input_data[col] = val
-
-    # زرار التنبؤ
-    if st.button("Predict"):
-        input_df = pd.DataFrame([input_data])
-        prediction = best_pipe.predict(input_df)[0]
-        proba = best_pipe.predict_proba(input_df)[0][1]
-
-        if prediction == 1:
-            st.success(f"✅ العميل **هيوافق** على الإيداع (Probability: {proba:.2f})")
+# Prediction form
+st.subheader("Try Prediction")
+with st.form("prediction_form"):
+    inputs = {}
+    for col in X.columns:
+        if data[col].dtype == 'object':
+            val = st.text_input(f"{col}")
+            inputs[col] = val
         else:
-            st.error(f"❌ العميل **مش هيوافق** على الإيداع (Probability: {proba:.2f})")
-else:
-    st.info("👆 Please upload your `bank.csv` file to start.")
+            val = st.number_input(f"{col}", value=0)
+            inputs[col] = val
+
+    submitted = st.form_submit_button("Predict")
+
+    if submitted:
+        input_df = pd.DataFrame([inputs])
+        # Encode categorical inputs like before
+        for col in input_df.select_dtypes(include='object').columns:
+            le = LabelEncoder()
+            input_df[col] = le.fit_transform(input_df[col])
+        y_new_pred = model.predict(input_df)
+        result = "Yes" if y_new_pred[0] == 1 else "No"
+        st.success(f"Prediction: {result}")
