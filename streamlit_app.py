@@ -151,10 +151,6 @@ if uploaded_file is not None:
     st.write("Precision:", precision_score(y_test, y_pred_best))
     st.write("Recall:", recall_score(y_test, y_pred_best))
     st.write("F1:", f1_score(y_test, y_pred_best))
-else:
-    st.info("👆 Please upload your `bank.csv` file to start.")
-    # =============================
-
 
     # ==============================
     # 7. Prediction Form
@@ -181,3 +177,5 @@ else:
             st.success(f"✅ العميل **هيوافق** على الإيداع (Probability: {proba:.2f})")
         else:
             st.error(f"❌ العميل **مش هيوافق** على الإيداع (Probability: {proba:.2f})")
+else:
+    st.info("👆 Please upload your `bank.csv` file to start.")
