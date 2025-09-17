@@ -84,13 +84,16 @@ st.write(f"Precision: {precision_score(y_test, y_pred):.2f}")
 st.write(f"Recall: {recall_score(y_test, y_pred):.2f}")
 
 # Prediction form
+# Prediction form
 st.subheader("Try Prediction")
 with st.form("prediction_form"):
     inputs = {}
     for col in X.columns:
+        if col == "pdays":   # ✅ استبعاد العمود
+            continue
         if data[col].dtype == "object":
             options = data[col].unique().tolist()
-            val = st.selectbox(f"{col}", options)   # ✅ Dropdown بدال Text
+            val = st.selectbox(f"{col}", options)
             inputs[col] = val
         else:
             val = st.number_input(f"{col}", value=0)
